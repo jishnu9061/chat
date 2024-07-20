@@ -8,4 +8,18 @@ use Illuminate\Database\Eloquent\Model;
 class Message extends Model
 {
     use HasFactory;
+
+    protected $table = 'chats';
+
+    protected $fillable = [
+        'chat_id',
+        'user_id',
+        'message',
+        'file_url',
+    ];
+
+    public static function getTableName()
+    {
+        return with(new static)->getTable();
+    }
 }
