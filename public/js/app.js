@@ -10,8 +10,10 @@ window.Echo = new Echo({
     forceTLS: true
 });
 
+// Assuming you have the chat ID available
+const chatId = 1;
 
-window.Echo.private('chat.' + chatId)
+window.Echo.private(`chat.${chatId}`)
     .listen('MessageSent', (e) => {
         console.log(e);
         // Handle the received message data

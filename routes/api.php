@@ -2,6 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\MessageController;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,6 +16,10 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
+Route::get('show-chats', [ChatController::class, 'showProductChat']);
+Route::post('store-chats', [ChatController::class, 'storeProductChat']);
+Route::get('show-message', [MessageController::class, 'showProductMessage']);
+Route::post('store-message', [MessageController::class, 'storeProductMessage']);
+
+Route::post('read-message', [MessageController::class, 'readMessage']);
+Route::post('delete-message', [MessageController::class, 'deleteMessage']);
