@@ -1,11 +1,6 @@
 <?php
 
-/**
- * Created By: JISHNU T K
- * Date: 2024/07/20
- * Time: 22:45:01
- * Description: MessageController.php
- */
+declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
@@ -14,6 +9,7 @@ use App\Models\Chat;
 use App\Models\Message;
 use App\Events\MessageSent;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use App\Exceptions\UnauthorizedException;
 use App\Http\Requests\ChatMessageStoreRequest;
@@ -21,37 +17,60 @@ use App\Http\Controllers\Api\ApiBaseController;
 
 class MessageController extends ApiBaseController
 {
-
     private const MESSAGE_IMAGE_PATH = 'messages';
 
-    public function showChatMessages($chatId)
+    /**
+     * Show paginated chat messages
+     *
+     * @param int $chatId
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function showChatMessages(int $chatId, Request $request): JsonResponse
     {
         $loggedUserId = getUser()->id;
         if (!$this->validateChatAccess($chatId, $loggedUserId)) {
             throw new UnauthorizedException();
         }
 
-        $messages = Message::where('chat_id', $chatId)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($message) use ($loggedUserId) {
-                $message->is_sender = $message->user_id === $loggedUserId;
-                return $message;
-            });
+        $perPage = (int) $request->input('per_page', 10); // Default to 10 messages per page
 
-        return $this->makeSuccessResponse($messages->toArray(), 'Message List');
+        // Fetch paginated messages
+        $paginator = Message::where('chat_id', $chatId)
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        // Enhance messages with additional data
+        $messages = $paginator->getCollection()->map(function (Message $message) use ($loggedUserId) {
+            $message->is_sender = $message->user_id === $loggedUserId;
+            return $message;
+        });
+
+        // Prepare response data
+        $response = [
+            'data' => $messages,
+            'pagination' => [
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'next_page_url' => $paginator->nextPageUrl(),
+                'previous_page_url' => $paginator->previousPageUrl(),
+            ],
+        ];
+
+        return $this->makeSuccessResponse($response, 'Message List');
     }
 
     /**
-     * Send Message
+     * Store a new chat message
      *
-     * @param Request $request
-     *
-     * @return [type]
+     * @param ChatMessageStoreRequest $request
+     * @param int $chatId
+     * @return JsonResponse
      */
-    public function storeChatMessage(ChatMessageStoreRequest $request, $chatId)
+    public function storeChatMessage(ChatMessageStoreRequest $request, int $chatId): JsonResponse
     {
-
         $loggedUserId = getUser()->id;
 
         if (!$this->validateChatAccess($chatId, $loggedUserId)) {
@@ -85,7 +104,14 @@ class MessageController extends ApiBaseController
         return $this->makeSuccessResponse($message->toArray(), 'Message stored successfully');
     }
 
-    public function readMessage(Request $request, $messageId)
+    /**
+     * Mark a message as read
+     *
+     * @param Request $request
+     * @param int $messageId
+     * @return JsonResponse
+     */
+    public function readMessage(Request $request, int $messageId): JsonResponse
     {
         $loggedUserId = getUser()->id;
 
@@ -94,7 +120,6 @@ class MessageController extends ApiBaseController
         }
 
         $message = Message::findOrFail($messageId);
-
         $chat = Chat::findOrFail($message->chat_id);
 
         $now = Carbon::now();
@@ -110,7 +135,14 @@ class MessageController extends ApiBaseController
         return $this->makeSuccessResponse($message->toArray(), 'Message Read');
     }
 
-    public function deleteMessage(Request $request, $messageId)
+    /**
+     * Delete a message
+     *
+     * @param Request $request
+     * @param int $messageId
+     * @return JsonResponse
+     */
+    public function deleteMessage(Request $request, int $messageId): JsonResponse
     {
         if (!$this->validateMessageAccess($messageId, getUser()->id)) {
             throw new UnauthorizedException();
@@ -122,7 +154,14 @@ class MessageController extends ApiBaseController
         return $this->makeSuccessResponse([], 'Message Deleted Successfully');
     }
 
-    private function validateMessageAccess($messageId, $userId)
+    /**
+     * Validate if the user has access to the message
+     *
+     * @param int $messageId
+     * @param int $userId
+     * @return bool
+     */
+    private function validateMessageAccess(int $messageId, int $userId): bool
     {
         return Chat::join('messages', 'chats.id', '=', 'messages.chat_id')
             ->where('messages.id', $messageId)
@@ -130,15 +169,50 @@ class MessageController extends ApiBaseController
             ->where(function ($query) use ($userId) {
                 $query->where('chats.user_id', $userId)
                     ->orWhere('chats.enlisted_user_id', $userId);
-            });
+            })->exists();
     }
 
-    private function validateChatAccess($chatId, $userId)
+    /**
+     * Validate if the user has access to the chat
+     *
+     * @param int $chatId
+     * @param int $userId
+     * @return bool
+     */
+    private function validateChatAccess(int $chatId, int $userId): bool
     {
         return Chat::where('id', $chatId)
             ->where(function ($query) use ($userId) {
                 $query->where('user_id', $userId)
                     ->orWhere('enlisted_user_id', $userId);
             })->exists();
+    }
+
+    public function readAllMessages(Request $request, int $chatId): JsonResponse
+    {
+        $loggedUserId = getUser()->id;
+
+        if (!$this->validateChatAccess($chatId, $loggedUserId)) {
+            throw new UnauthorizedException();
+        }
+
+        $chat = Chat::findOrFail($chatId);
+        $now = Carbon::now();
+
+        Message::where('chat_id', $chatId)
+            ->where(function ($query) use ($chat, $loggedUserId) {
+                if ($chat->user_id === $loggedUserId) {
+                    $query->whereNull('user_read_at');
+                }
+                if ($chat->enlisted_user_id === $loggedUserId) {
+                    $query->whereNull('enlisted_user_read_at');
+                }
+            })
+            ->update([
+                'user_read_at' => $chat->user_id === $loggedUserId ? $now : null,
+                'enlisted_user_read_at' => $chat->enlisted_user_id === $loggedUserId ? $now : null
+            ]);
+
+        return $this->makeSuccessResponse([], 'All messages marked as read');
     }
 }

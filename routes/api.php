@@ -32,4 +32,5 @@ Route::middleware(
     // Additional message actions
     Route::post('messages/{message_id}/read', [MessageController::class, 'readMessage']);
     Route::delete('messages/{message_id}', [MessageController::class, 'deleteMessage']);
+    Route::post('chats/{chat_id}/read-all', [MessageController::class, 'readAllMessages']);
 });
