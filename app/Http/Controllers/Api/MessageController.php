@@ -197,22 +197,19 @@ class MessageController extends ApiBaseController
         }
 
         $chat = Chat::findOrFail($chatId);
+
         $now = Carbon::now();
+        if ($chat->user_id === $loggedUserId) {
+            Message::where('chat_id', $chatId)
+                ->whereNull('user_read_at')
+                ->update(['user_read_at' => $now]);
+        }
+        if ($chat->enlisted_user_id === $loggedUserId) {
+            Message::where('chat_id', $chatId)
+                ->whereNull('enlisted_user_read_at')
+                ->update(['enlisted_user_read_at' => $now]);
+        }
 
-        Message::where('chat_id', $chatId)
-            ->where(function ($query) use ($chat, $loggedUserId) {
-                if ($chat->user_id === $loggedUserId) {
-                    $query->whereNull('user_read_at');
-                }
-                if ($chat->enlisted_user_id === $loggedUserId) {
-                    $query->whereNull('enlisted_user_read_at');
-                }
-            })
-            ->update([
-                'user_read_at' => $chat->user_id === $loggedUserId ? $now : null,
-                'enlisted_user_read_at' => $chat->enlisted_user_id === $loggedUserId ? $now : null
-            ]);
-
-        return $this->makeSuccessResponse([], 'All messages marked as read');
+        return $this->makeSuccessResponse([], 'All Messages Read');
     }
 }
