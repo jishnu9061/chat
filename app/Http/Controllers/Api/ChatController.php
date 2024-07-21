@@ -9,84 +9,53 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Api\ApiBaseController;
-
 use App\Models\Chat;
-use App\Models\Message;
-use App\Models\Product;
 
-use Illuminate\Http\Request;
+use App\Models\Product;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
+use App\Exceptions\UnauthorizedException;
+use App\Http\Controllers\Api\ApiBaseController;
 
 class ChatController extends ApiBaseController
 {
     /**
-     * Show the Product Chat List
+     * Show Product Chat List
      *
-     * @param Request $request
+     * @param [type] $productId
      *
      * @return [type]
      */
-    public function showProductChat(Request $request)
+    public function showProductChats($productId): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'product_id' => 'required|exists:products,id'
-        ]);
-        if ($validator->fails()) {
-            return $this->sendError('Invalid data', $validator->errors()->toArray());
-        } else {
-            $chats = Chat::where('product_id', $request->input('product_id'))->get();
-            return $this->sendResponse($chats, 'Chat List');
-        }
+        $loggedUserId = getUser()->id;
+        // Retrieve chats for the specific product
+        $chats = Chat::where('product_id', $productId)->where(function ($query) use ($loggedUserId) {
+            $query->where('chats.user_id', $loggedUserId)
+                ->orWhere('chats.enlisted_user_id', $loggedUserId);
+        })->get();
+        return $this->makeSuccessResponse($chats->toArray(), 'Chat List');
     }
 
     /**
      * Create Product Chat List  Or Show Older Conversation
      *
-     * @param Request $request
-     *
-     * @return [type]
      */
-    public function storeProductChat(Request $request)
+    public function storeProductChat($productId): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'product_id' => 'required|exists:products,id',
-            'user_id' => 'required|exists:users,id'
-        ]);
-        if ($validator->fails()) {
-            return $this->sendError('Invalid data', $validator->errors()->toArray());
-        } else {
-            $chat = Chat::where('product_id', $request->input('product_id'))
-                ->where('user_id', $request->input('user_id'))
-                ->first();
+        $userId = getUser()->id;
 
-            if (!$chat) {
-                $product = Product::find($request->input('product_id'));
-                $chat = Chat::create([
-                    'product_id' => $request->input('product_id'),
-                    'user_id' => $request->input('user_id'),
-                    'enlisted_user_id' => $product->user_id
-                ]);
-            }
 
-            $chatWithMessages = DB::table(Chat::getTableName() . ' as c')
-                ->Join(Message::getTableName() . ' as m', 'm.chat_id', '=', 'c.id')
-                ->where('c.id', $chat->id)
-                ->select('c.*', 'm.id as message_id', 'm.message', 'm.user_id as message_user_id', 'm.file_url', 'm.created_at as message_created_at')
-                ->get();
-            $chatList = [];
-            foreach ($chatWithMessages as $data) {
-                $chatList[] = [
-                    'id' => $data->id,
-                    'message_id' => $data->message_id,
-                    'message' => $data->message,
-                    'user_id' => $data->message_user_id,
-                    'file_url' => $data->file_url,
-                    'created_at' => $data->message_created_at
-                ];
-            }
-            return $this->sendResponse($chatList, 'Chat Messages');
+        // To do validate the  product user can't add chat for that product
+        if (Product::where('user_id', $userId)->exists()) {
+            throw new UnauthorizedException();
         }
+
+        // Retrieve or create chat
+        $chat = Chat::firstOrCreate(
+            ['product_id' => $productId, 'user_id' => $userId],
+            ['enlisted_user_id' => Product::find($productId)->user_id]
+        );
+        return $this->makeSuccessResponse($chat->toArray(), 'Chat Response');
     }
 }

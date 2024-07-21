@@ -17,6 +17,8 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id');
             $table->text('message');
             $table->string('file_url')->nullable();
+            $table->timestamp('user_read_at')->nullable();
+            $table->timestamp('enlisted_user_read_at')->nullable();
             $table->timestamps();
         });
     }

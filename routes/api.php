@@ -1,9 +1,9 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\MessageController;
+use App\Http\Controllers\Api\AuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,10 +16,20 @@ use App\Http\Controllers\Api\MessageController;
 |
 */
 
-Route::get('show-chats', [ChatController::class, 'showProductChat']);
-Route::post('store-chats', [ChatController::class, 'storeProductChat']);
-Route::get('show-message', [MessageController::class, 'showProductMessage']);
-Route::post('store-message', [MessageController::class, 'storeProductMessage']);
+Route::post('login', [AuthController::class, 'login']);
 
-Route::post('read-message', [MessageController::class, 'readMessage']);
-Route::post('delete-message', [MessageController::class, 'deleteMessage']);
+Route::middleware(
+    ['auth:api']
+    )->group(function () {
+    // Chat routes
+    Route::get('products/{product_id}/chats', [ChatController::class, 'showProductChats']);
+    Route::post('products/{product_id}/chats', [ChatController::class, 'storeProductChat']);
+
+    // Message routes
+    Route::get('chats/{chat_id}/messages', [MessageController::class, 'showChatMessages']);
+    Route::post('chats/{chat_id}/messages', [MessageController::class, 'storeChatMessage']);
+
+    // Additional message actions
+    Route::post('messages/{message_id}/read', [MessageController::class, 'readMessage']);
+    Route::delete('messages/{message_id}', [MessageController::class, 'deleteMessage']);
+});

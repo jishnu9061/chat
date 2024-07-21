@@ -11,11 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('message_reads', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('message_id');
-            $table->unsignedBigInteger('user_id');
-            $table->timestamp('read_at')->nullable();
+        Schema::create('oauth_personal_access_clients', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('client_id');
             $table->timestamps();
         });
     }
@@ -25,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('message_reads');
+        Schema::dropIfExists('oauth_personal_access_clients');
     }
 };

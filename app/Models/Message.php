@@ -16,6 +16,8 @@ class Message extends Model
         'user_id',
         'message',
         'file_url',
+        'user_read_at',
+        'enlisted_user_read_at'
     ];
 
     public static function getTableName()
